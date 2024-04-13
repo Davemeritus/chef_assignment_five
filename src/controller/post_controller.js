@@ -1,57 +1,96 @@
-import Post from "../database/schema/post_schema.js";
+import * as postService from "../services/post_service.js";
+// import Post from "../database/schema/post_schema.js";
 
-/**
- * Retrieves all posts from the database with options for pagination and sorting.
- *
- * @param {Object} options - The options for retrieving the posts.
- * @returns {Promise<Array>} - A promise that resolves to an array of posts.
- */
-export const getAllPosts = async ({ limit = 10, page = 1, order = "desc", orderBy = "createdAt" } = {}) => {
-  const skip = (page - 1) * limit;
-  const sortOptions = { [orderBy]: order };
-
-  return Post.find()
-    .populate("user", "")
-    .sort(sortOptions)
-    .skip(skip)
-    .limit(Number(limit));
+export const createPost = async (req, res) => {
+  try {
+    const user = req.user;
+  
+    const { title, body } = req.body;
+    const data = await postService.createPost(title, body, user);
+    res.json({
+      message: "Post created",
+      data,
+    });
+  } catch (err) {
+    if (err.name === "ValidationError") {
+      const errors = Object.values(err.errors).map((error) => error.message);
+      return res.status(400).json({ message: "Validation error", errors });
+    }
+    res.status(err.statusCode || 500).json({ message: err.message });
+  }
 };
 
-/**
- * Retrieves a single post by its ID.
- *
- * @param {string} id - The ID of the post.
- * @returns {Promise<Object>} - A promise that resolves to the post.
- */
-export const getSinglePost = (id) => Post.findById(id).populate("user", "");
+export const updatePost = async (req, res) => {
+  try {
+    let data;
+    const id = req.params.id;
+    const { title, body } = req.body;
+    if (!title && !body) {
+      return res
+        .status(400)
+        .json({ message: "Either title or body must be provided" });
+    }
+    if (title) {
+      data = await postService.updatePost(id, { title });
+    }
+    if (body) {
+      data = await postService.updatePost(id, { body });
+    }
+    res.json({
+      message: "Post updated successfully",
+      data,
+    });
+  } catch (err) {
+    if (err.name === "ValidationError") {
+      const errors = Object.values(err.errors).map((error) => error.message);
+      return res.status(400).json({ message: "Validation error", errors });
+    }
+    res.status(err.statusCode || 500).json({ message: err.message });
+  }
+};
 
-/**
- * Updates a post by its ID.
- *
- * @param {string} id - The ID of the post.
- * @param {Object} updateField - The fields to update.
- * @returns {Promise<Object>} - A promise that resolves to the updated post.
- */
-export const updatePost = (id, updateField) => Post.findByIdAndUpdate(id, updateField, { new: true }).populate("user", "");
+export const deletePost = async (req, res) => {
+  try {
+    const id = req.params.id;
+    await postService.deletePost(id);
+    const data = await postService.getAllPosts();
+    res.json({
+      message: "Post deleted successfully",
+      data,
+    });
+  } catch (err) {
+    res.status(err.statusCode || 500).json({ message: err.message });
+  }
+};
 
-/**
- * Deletes a post by its ID.
- *
- * @param {string} id - The ID of the post.
- * @returns {Promise<Object>} - A promise that resolves to the deleted post.
- */
-export const deletePost = (id) => Post.findByIdAndDelete(id).populate("user", "");
+export const getAllPosts = async (req, res) => {
+  try {
+    const {
+      limit = 10,
+      page = 1,
+      order = "desc",
+      orderBy = "createdAt",
+    } = req.query;
+    const data = await postService.getAllPosts({ limit, page, order, orderBy });
+    console.log(data);
+    res.json({
+      message: "All posts",
+      data,
+    });
+  } catch (err) {
+    res.status(err.statusCode || 500).json({ message: err.message });
+  }
+};
 
-/**
- * Creates a new post.
- *
- * @param {string} title - The title of the post.
- * @param {string} body - The body of the post.
- * @param {string} user - The user who created the post.
- * @returns {Promise<Object>} - A promise that resolves to the new post.
- */
-export const createPost = async (title, body, user) => {
-  const newPost = new Post({ title, body, user });
-  await newPost.save();
-  return newPost.populate("user", "").execPopulate();
+export const getSinglePost = async (req, res) => {
+  try {
+    const id = req.params.id;
+    const data = await postService.getSinglePost(id);
+    res.json({
+      message: "Post",
+      data,
+    });
+  } catch (err) {
+    res.status(err.statusCode || 500).json({ message: err.message });
+  }
 };
